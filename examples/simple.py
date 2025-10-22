@@ -26,6 +26,10 @@ def main() -> int:
 
     timestamp = UUIDv7Cat.get_timestamp_sec(uuid_obj)
     print(timestamp)
+
+    # Show repr string
+    print(repr(uuid_obj))
+
     return 0
 
 

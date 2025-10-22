@@ -9,8 +9,9 @@ Description:
     Used for dependency injection, provides the categories used in the actual implementation
 """
 
+import json
 from enum import Enum
-from typing import Optional, Type
+from typing import Optional, Type, cast, Dict, Any
 
 
 class CategoryProvider:
@@ -26,13 +27,31 @@ class CategoryProvider:
         cls._category_enum = category_enum
 
     @classmethod
+    def set_categories_from_json(
+        cls, json_payload: str, enum_name: str = "DynamicCategory"
+    ):
+        """
+        Load categories from a JSON string and set them.
+        The JSON string should contain a dictionary of category names to integer values.
+        e.g., '{"CAR": 1, "TRUCK": 2}'
+        """
+        try:
+            categories = json.loads(json_payload)
+            # Create an Enum class dynamically from the JSON data
+            dynamic_enum_class = Enum(enum_name, categories)
+            cls.set_categories(cast(Type[Enum], dynamic_enum_class))
+        except (json.JSONDecodeError, TypeError) as e:
+            # Catches both bad JSON and invalid dictionary values for an Enum
+            raise ValueError(f"Failed to load categories from JSON payload: {e}") from e
+
+    @classmethod
     def get_categories(cls) -> Type[Enum]:
         """Get the current category enum"""
         if cls._category_enum is None:
-            # Load default
+            # If no enum is configured, return the default without setting it globally.
             from uuidcat.category import Category
 
-            cls._category_enum = Category
+            return Category
         return cls._category_enum
 
     @classmethod

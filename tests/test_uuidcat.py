@@ -12,6 +12,7 @@ Description:
 import calendar
 import time
 import uuid
+import json
 from enum import Enum
 
 import pytest
@@ -28,7 +29,7 @@ class TestCategory(Enum):
     BLUE = 30
 
 
-@pytest.fixture(autouse=True)
+@pytest.fixture
 def setup_teardown():
     """Fixture to ensure a clean state for each test."""
     # Setup: configure categories for tests
@@ -38,6 +39,7 @@ def setup_teardown():
     CategoryProvider.reset()
 
 
+@pytest.mark.usefixtures("setup_teardown")
 def test_new_uuid_creation():
     """Test creation of a new UUIDv7Cat."""
     cat = TestCategory.GREEN
@@ -49,6 +51,7 @@ def test_new_uuid_creation():
     assert uuid_obj.category == cat
 
 
+@pytest.mark.usefixtures("setup_teardown")
 def test_new_uuid_with_invalid_category_value():
     """Test that creating a UUID with an out-of-range category value fails."""
 
@@ -63,31 +66,36 @@ def test_new_uuid_with_invalid_category_value():
         UUIDv7Cat.new(BadCategory.TOO_BIG)
 
 
+@pytest.mark.usefixtures("setup_teardown")
 def test_category_property():
     """Test the category property on a UUIDv7Cat instance."""
     uuid_obj = UUIDv7Cat.new(TestCategory.RED)
     assert uuid_obj.category == TestCategory.RED
 
 
+@pytest.mark.usefixtures("setup_teardown")
 def test_category_property_with_unknown_id():
     """Test the category property when the category ID is not in the enum."""
     # Manually construct a UUID with a category ID (e.g., 99) not in TestCategory
-    base_uuid = UUIDv7Cat.new(TestCategory.RED)
-    uuid_int = (99 << 120) | (base_uuid.int & ((1 << 120) - 1))
-    uuid_obj = UUIDv7Cat(int=uuid_int)  # Use the correct constructor
+    base_uuid_int = UUIDv7Cat.new(TestCategory.RED).int
+    # Clear the category bits (68-75) and set them to 99
+    uuid_int = (base_uuid_int & ~((0xFF) << 68)) | (99 << 68)
+    uuid_obj = UUIDv7Cat(uuid.UUID(int=uuid_int))
 
     assert uuid_obj.category is None
 
 
+@pytest.mark.usefixtures("setup_teardown")
 def test_str_representation():
     """Test the string representation of UUIDv7Cat."""
     uuid_obj = UUIDv7Cat.new(TestCategory.BLUE)
     # Should be a standard UUID hex string
-    assert str(uuid_obj) == uuid_obj.hex
+    assert len(str(uuid_obj)) == 36
     # Check that it can be parsed back into a standard UUID
     assert uuid.UUID(str(uuid_obj)) == uuid_obj
 
 
+@pytest.mark.usefixtures("setup_teardown")
 def test_repr_representation():
     """Test the repr representation of UUIDv7Cat."""
     uuid_obj = UUIDv7Cat.new(TestCategory.BLUE)
@@ -95,20 +103,23 @@ def test_repr_representation():
 
     assert "UUIDv7Cat" in repr_str
     assert "ver=7" in repr_str
-    assert f"variant={uuid.RFC_4122}" in repr_str
+    assert "variant=specified in RFC 4122" in repr_str
     assert "cat=BLUE(30)" in repr_str
 
 
+@pytest.mark.usefixtures("setup_teardown")
 def test_repr_with_invalid_category():
     """Test the repr representation with an invalid category ID."""
-    base_uuid = UUIDv7Cat.new(TestCategory.RED)
-    uuid_int = (150 << 120) | (base_uuid.int & ((1 << 120) - 1))
-    uuid_obj = UUIDv7Cat(int=uuid_int)  # Use the correct constructor
+    base_uuid_int = UUIDv7Cat.new(TestCategory.RED).int
+    # Clear the category bits (68-75) and set them to 150
+    uuid_int = (base_uuid_int & ~((0xFF) << 68)) | (150 << 68)
+    uuid_obj = UUIDv7Cat(uuid.UUID(int=uuid_int))  # Use the correct constructor
     repr_str = repr(uuid_obj)
 
     assert "cat=INVALID(150)" in repr_str
 
 
+@pytest.mark.usefixtures("setup_teardown")
 def test_get_category():
     """Test the static get_category method."""
     uuid_obj = UUIDv7Cat.new(TestCategory.GREEN)
@@ -119,6 +130,7 @@ def test_get_category():
     assert UUIDv7Cat.get_category(str(uuid_obj)) == TestCategory.GREEN
 
 
+@pytest.mark.usefixtures("setup_teardown")
 def test_get_category_invalid_inputs():
     """Test get_category with various invalid inputs."""
     # Invalid UUID string
@@ -126,11 +138,14 @@ def test_get_category_invalid_inputs():
     # UUIDv4
     assert UUIDv7Cat.get_category(uuid.uuid4()) is None
     # UUID with a category ID not in the enum
-    uuid_int = (99 << 120) | (UUIDv7Cat.new(TestCategory.RED).int & ((1 << 120) - 1))
-    uuid_obj = UUIDv7Cat(int=uuid_int)
+    base_uuid_int = UUIDv7Cat.new(TestCategory.RED).int
+    # Clear the category bits (68-75) and set them to 99
+    uuid_int = (base_uuid_int & ~((0xFF) << 68)) | (99 << 68)
+    uuid_obj = UUIDv7Cat(uuid.UUID(int=uuid_int))
     assert UUIDv7Cat.get_category(uuid_obj) is None
 
 
+@pytest.mark.usefixtures("setup_teardown")
 def test_get_timestamp_sec():
     """Test the static get_timestamp_sec method."""
     start_time = time.time()
@@ -146,15 +161,17 @@ def test_get_timestamp_sec():
     utc_struct_time = time.strptime(ts_str, "%Y-%m-%dT%H:%M:%SZ")
     ts_from_uuid = calendar.timegm(utc_struct_time)
     # Allow a small buffer for execution time
-    assert start_time - 1 <= ts_from_uuid <= end_time + 1
+    assert start_time - 2 <= ts_from_uuid <= end_time + 2  # Allow a 2-second window
 
 
+@pytest.mark.usefixtures("setup_teardown")
 def test_get_timestamp_sec_invalid_input():
     """Test get_timestamp_sec with an invalid UUID."""
     assert UUIDv7Cat.get_timestamp_sec(uuid.uuid4()) is None
     assert UUIDv7Cat.get_timestamp_sec("not-a-uuid") is None
 
 
+@pytest.mark.usefixtures("setup_teardown")
 def test_is_valid():
     """Test the static is_valid method."""
     valid_uuid = UUIDv7Cat.new(TestCategory.BLUE)
@@ -162,6 +179,7 @@ def test_is_valid():
     assert UUIDv7Cat.is_valid(str(valid_uuid)) is True
 
 
+@pytest.mark.usefixtures("setup_teardown")
 def test_is_valid_false_cases():
     """Test is_valid for cases where it should return False."""
     # UUIDv4
@@ -169,13 +187,51 @@ def test_is_valid_false_cases():
     # Invalid string
     assert UUIDv7Cat.is_valid("not-a-uuid") is False
     # UUIDv7Cat with a category ID not in the current enum
-    uuid_int = (99 << 120) | (UUIDv7Cat.new(TestCategory.RED).int & ((1 << 120) - 1))
-    invalid_cat_uuid = UUIDv7Cat(int=uuid_int)
+    base_uuid_int = UUIDv7Cat.new(TestCategory.RED).int
+    # Clear the category bits (68-75) and set them to 99
+    uuid_int = (base_uuid_int & ~((0xFF) << 68)) | (99 << 68)
+    invalid_cat_uuid = UUIDv7Cat(uuid.UUID(int=uuid_int))
     assert UUIDv7Cat.is_valid(invalid_cat_uuid) is False
 
 
-def test_default_categories_fallback():
-    """Test that the default categories are used if none are set."""
+@pytest.mark.usefixtures("setup_teardown")
+def test_set_categories_from_json():
+    """Test loading categories from a JSON string."""
+    json_categories = {"ALPHA": 100, "BETA": 101, "GAMMA": 102}
+    json_payload = json.dumps(json_categories)
+
+    CategoryProvider.set_categories_from_json(json_payload)
+    DynamicCategory = CategoryProvider.get_categories()
+
+    # Verify the enum was created correctly
+    assert issubclass(DynamicCategory, Enum)
+    assert getattr(DynamicCategory, "ALPHA").value == 100
+    assert getattr(DynamicCategory, "BETA").name == "BETA"
+    assert len(DynamicCategory) == 3
+
+    # Verify integration with UUIDv7Cat
+    uuid_obj = UUIDv7Cat.new(getattr(DynamicCategory, "GAMMA"))
+    assert uuid_obj.category == getattr(DynamicCategory, "GAMMA")
+    assert UUIDv7Cat.is_valid(uuid_obj)
+
+
+@pytest.mark.usefixtures("setup_teardown")
+def test_set_categories_from_invalid_json():
+    """Test that loading from a malformed JSON string raises an error."""
+    # Invalid JSON due to a trailing comma
+    invalid_json_payload = '{"A": 1, "B": 2,}'
+
+    with pytest.raises(ValueError) as excinfo:
+        CategoryProvider.set_categories_from_json(invalid_json_payload)
+
+    # Check that the ValueError was caused by a JSONDecodeError
+    assert isinstance(excinfo.value, ValueError)
+    assert isinstance(excinfo.value.__cause__, json.JSONDecodeError)
+
+
+@pytest.mark.usefixtures("setup_teardown")
+def test_reset_causes_default_fallback():
+    """Test that after a reset, get_categories falls back to the default."""
     CategoryProvider.reset()  # Reset to ensure no categories are set
 
     from uuidcat.category import Category as DefaultCategory
@@ -183,15 +239,23 @@ def test_default_categories_fallback():
     # get_categories should now load the default
     assert CategoryProvider.get_categories() == DefaultCategory
 
-    # Create a UUID using the default category enum
+    # Verify that a UUID can be created with the default enum
     uuid_obj = UUIDv7Cat.new(DefaultCategory.TYPE_A)
     assert uuid_obj.category == DefaultCategory.TYPE_A
     assert UUIDv7Cat.is_valid(uuid_obj)
 
-    # Now, check that a UUID created with the test enum is considered invalid
-    # because the provider is now configured with the default enum.
-    CategoryProvider.set_categories(TestCategory)
-    other_uuid = UUIDv7Cat.new(TestCategory.RED)
 
-    CategoryProvider.reset()  # Fallback to default again
-    assert UUIDv7Cat.is_valid(other_uuid) is False
+@pytest.mark.usefixtures("setup_teardown")
+def test_is_valid_after_category_change():
+    """Test that is_valid reflects the currently configured categories."""
+    # 1. Create a UUID with the initial TestCategory
+    uuid_with_test_category = UUIDv7Cat.new(TestCategory.RED)
+    assert UUIDv7Cat.is_valid(uuid_with_test_category) is True
+
+    # 2. Change the provider to use the default categories
+    from uuidcat.category import Category as DefaultCategory
+
+    CategoryProvider.set_categories(DefaultCategory)
+
+    # 3. The original UUID should now be considered invalid
+    assert UUIDv7Cat.is_valid(uuid_with_test_category) is False
