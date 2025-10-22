@@ -12,10 +12,12 @@ Description:
     - Remaining layout matches UUIDv7 as closely as possible
 """
 
+# fixes forward references (quoted class names) that can cause issues with "|".
+from __future__ import annotations
+
 import os
 import time
 import uuid
-from typing import Union
 from uuidcat.category_provider import CategoryProvider
 
 _UUID_VERSION = 7
@@ -25,7 +27,7 @@ _UUID_VARIANT_RFC4122_BITS = 0b10
 class UUIDv7Cat:
     """UUIDv7 with an embedded category field."""
 
-    def __init__(self, u: Union[str, uuid.UUID]):
+    def __init__(self, u: str | uuid.UUID):
         if isinstance(u, str):
             self._uuid = uuid.UUID(u)
         elif isinstance(u, uuid.UUID):
@@ -125,7 +127,7 @@ class UUIDv7Cat:
 
     @staticmethod
     def _basic_validity_check(
-        u: Union[str, uuid.UUID, "UUIDv7Cat"],
+        u: str | uuid.UUID | "UUIDv7Cat",
     ) -> uuid.UUID | None:
         if isinstance(u, str):
             try:
@@ -141,7 +143,7 @@ class UUIDv7Cat:
         return None
 
     @staticmethod
-    def get_category(u: Union[str, uuid.UUID, "UUIDv7Cat"]):
+    def get_category(u: str | uuid.UUID | "UUIDv7Cat"):
         """
         Extract the category field from a UUID.
 
@@ -160,7 +162,7 @@ class UUIDv7Cat:
         return None
 
     @staticmethod
-    def get_timestamp_sec(u: Union[str, uuid.UUID, "UUIDv7Cat"]) -> str | None:
+    def get_timestamp_sec(u: str | uuid.UUID | "UUIDv7Cat") -> str | None:
         """
         Extract the timestamp field from a UUID, converts it to a string in standard
         ISO 8601 date time format, down to seconds granularity
@@ -182,7 +184,7 @@ class UUIDv7Cat:
         return None
 
     @staticmethod
-    def is_valid(u: Union[str, uuid.UUID, "UUIDv7Cat"]) -> bool:
+    def is_valid(u: str | uuid.UUID | "UUIDv7Cat") -> bool:
         """
         Check if a UUID is a valid UUIDv7Cat.
 
